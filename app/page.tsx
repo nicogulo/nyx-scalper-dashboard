@@ -7,7 +7,7 @@ import PositionCard from "@/components/PositionCard";
 import TradeHistory from "@/components/TradeHistory";
 import StatsGrid from "@/components/StatsGrid";
 
-interface DashboardData {
+interface StateData {
   testnet: {
     daily_pnl: number;
     trades_today: number;
@@ -15,14 +15,14 @@ interface DashboardData {
     losses: number;
     balance_start: number;
     cooldown_until: string | null;
-    last_reset: string;
+    last_reset_date: string;
   } | null;
   trades: Record<string, unknown>[];
   liveSignals: number;
   lastLiveSignal: string | null;
-  testnetErrors: number;
+  errors: number;
   lastActivity: string;
-  timestamp: string;
+  timestamp: number;
 }
 
 interface BalanceData {
@@ -30,22 +30,28 @@ interface BalanceData {
   live: { wallet: number; available: number; unrealized: number; error?: boolean };
 }
 
+interface PositionsData {
+  testnet: Record<string, unknown>[] | { error: string };
+  live: Record<string, unknown>[] | { error: string };
+}
+
 export default function Dashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [state, setState] = useState<StateData | null>(null);
   const [balance, setBalance] = useState<BalanceData | null>(null);
+  const [positions, setPositions] = useState<PositionsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchData = useCallback(async () => {
     try {
-      const [stateRes, balanceRes] = await Promise.all([
+      const [stateRes, balanceRes, positionsRes] = await Promise.all([
         fetch("/api/state"),
         fetch("/api/balance"),
+        fetch("/api/positions"),
       ]);
-      const stateData = await stateRes.json();
-      const balanceData = await balanceRes.json();
-      setData(stateData);
-      setBalance(balanceData);
+      setState(await stateRes.json());
+      setBalance(await balanceRes.json());
+      setPositions(await positionsRes.json());
       setLastUpdate(new Date());
     } catch (err) {
       console.error("Fetch error:", err);
@@ -56,7 +62,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000); // refresh every 15s
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -72,12 +78,11 @@ export default function Dashboard() {
     );
   }
 
-  const state = data?.testnet;
-  const trades = data?.trades || [];
+  const s = state?.testnet;
+  const trades = state?.trades || [];
   const completedTrades = trades.filter(
     (t) => t.result === "WIN" || t.result === "LOSS" || t.pnl
   );
-  const openTrades = trades.filter((t) => t.status === "PLACED");
   const wins = completedTrades.filter((t) => (t.pnl as number) > 0).length;
   const losses = completedTrades.filter((t) => (t.pnl as number) < 0).length;
 
@@ -102,11 +107,11 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-4 mt-3 md:mt-0">
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-dot" />
             Daemon Running
           </div>
           <div className="text-xs text-slate-600">
-            Updated: {lastUpdate.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" })} WIB
+            {lastUpdate.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" })} WIB
           </div>
           <button
             onClick={fetchData}
@@ -117,21 +122,21 @@ export default function Dashboard() {
         </div>
       </motion.header>
 
-      {/* Stats Grid */}
+      {/* Stats */}
       <div className="mb-6">
         <StatsGrid
-          dailyPnl={state?.daily_pnl || 0}
-          tradesToday={state?.trades_today || 0}
+          dailyPnl={s?.daily_pnl || 0}
+          tradesToday={s?.trades_today || 0}
           wins={wins}
           losses={losses}
           totalTrades={completedTrades.length}
-          liveSignals={data?.liveSignals || 0}
-          errors={data?.testnetErrors || 0}
-          lastActivity={data?.lastActivity || ""}
+          liveSignals={state?.liveSignals || 0}
+          errors={state?.errors || 0}
+          lastActivity={state?.lastActivity || ""}
         />
       </div>
 
-      {/* Balance Cards */}
+      {/* Balance */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <BalanceCard
           label="Testnet"
@@ -153,46 +158,43 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Positions & Recent Activity */}
+      {/* Positions + Status */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <PositionCard positions={state?.daily_pnl !== undefined ? {} : {}} />
+        <PositionCard
+          testnet={(positions?.testnet || []) as Parameters<typeof PositionCard>[0]["testnet"]}
+          live={(positions?.live || []) as Parameters<typeof PositionCard>[0]["live"]}
+        />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-slate-700/50 bg-[#12122a] p-6"
+          className="rounded-xl border border-slate-700/50 bg-[#12122a] p-5"
         >
           <div className="flex items-center gap-2 mb-4">
             <span className="text-lg">📡</span>
-            <span className="font-semibold text-slate-300">
-              Live Analyze (DRY RUN)
-            </span>
+            <span className="font-semibold text-slate-300">Live Analyze (DRY RUN)</span>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
-              <span className="text-slate-400">Signals Detected</span>
-              <span className="font-bold text-yellow-400">
-                {data?.liveSignals || 0}
-              </span>
+              <span className="text-slate-400 text-sm">Signals Detected</span>
+              <span className="font-bold text-yellow-400">{state?.liveSignals || 0}</span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
-              <span className="text-slate-400">Mode</span>
-              <span className="text-sm text-cyan-400">DRY RUN (no execution)</span>
+              <span className="text-slate-400 text-sm">Mode</span>
+              <span className="text-sm text-cyan-400">DRY RUN</span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
-              <span className="text-slate-400">Pair</span>
+              <span className="text-slate-400 text-sm">Pair</span>
               <span className="font-medium text-white">BTCUSDT</span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
-              <span className="text-slate-400">Errors</span>
-              <span
-                className={`font-bold ${
-                  (data?.testnetErrors || 0) === 0
-                    ? "text-emerald-400"
-                    : "text-red-400"
-                }`}
-              >
-                {data?.testnetErrors || 0}
+              <span className="text-slate-400 text-sm">Errors</span>
+              <span className={`font-bold ${(state?.errors || 0) === 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {state?.errors || 0}
               </span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
+              <span className="text-slate-400 text-sm">Last Activity</span>
+              <span className="text-xs text-slate-300">{state?.lastActivity || "-"}</span>
             </div>
           </div>
         </motion.div>
@@ -201,12 +203,8 @@ export default function Dashboard() {
       {/* Trade History */}
       <TradeHistory trades={trades as Parameters<typeof TradeHistory>[0]["trades"]} />
 
-      {/* Footer */}
       <footer className="mt-8 text-center text-xs text-slate-600">
-        <p>
-          Nyx Scalper V2 • Powered by Binance Futures •{" "}
-          <span className="text-purple-500">ghost</span> mode
-        </p>
+        Nyx Scalper V2 • Binance Futures • <span className="text-purple-500">ghost</span> mode
       </footer>
     </div>
   );
