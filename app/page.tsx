@@ -7,6 +7,7 @@ import PositionCard from "@/components/PositionCard";
 import TradeHistory from "@/components/TradeHistory";
 import StatsGrid from "@/components/StatsGrid";
 import ErrorLog from "@/components/ErrorLog";
+import MarketRegime from "@/components/MarketRegime";
 
 interface StateData {
   testnet: {
@@ -41,26 +42,52 @@ interface ErrorData {
   total: number;
 }
 
+interface RegimeData {
+  symbol: string;
+  volatility: string;
+  atr_pct: number;
+  atr_percentile: number;
+  trend: string;
+  trend_strength: number;
+  vol_ratio: number;
+  rsi_5m: number;
+  rsi_15m: number;
+  ema_alignment: string;
+  regime_summary: string;
+  params: {
+    vol_ratio_min: number;
+    tp_pct: number;
+    sl_pct: number;
+    risk_multiplier: number;
+    allow_long: boolean;
+    allow_short: boolean;
+    confidence_min: string;
+  };
+}
+
 export default function Dashboard() {
   const [state, setState] = useState<StateData | null>(null);
   const [balance, setBalance] = useState<BalanceData | null>(null);
   const [positions, setPositions] = useState<PositionsData | null>(null);
   const [errorLog, setErrorLog] = useState<ErrorData | null>(null);
+  const [regimeData, setRegimeData] = useState<{ regimes: Record<string, RegimeData>; learning?: { summary: { completed_trades: number; wins: number; losses: number; win_rate: number; total_pnl: number } } } | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchData = useCallback(async () => {
     try {
-      const [stateRes, balanceRes, positionsRes, errorsRes] = await Promise.all([
+      const [stateRes, balanceRes, positionsRes, errorsRes, regimeRes] = await Promise.all([
         fetch("/api/state"),
         fetch("/api/balance"),
         fetch("/api/positions"),
         fetch("/api/errors"),
+        fetch("/api/regime"),
       ]);
       setState(await stateRes.json());
       setBalance(await balanceRes.json());
       setPositions(await positionsRes.json());
       setErrorLog(await errorsRes.json());
+      setRegimeData(await regimeRes.json());
       setLastUpdate(new Date());
     } catch (err) {
       console.error("Fetch error:", err);
@@ -207,6 +234,14 @@ export default function Dashboard() {
             </div>
           </div>
         </motion.div>
+      </div>
+
+      {/* Market Regime */}
+      <div className="mb-6">
+        <MarketRegime 
+          regimes={regimeData?.regimes || {}} 
+          learning={regimeData?.learning?.summary} 
+        />
       </div>
 
       {/* Trade History + Error Log */}
