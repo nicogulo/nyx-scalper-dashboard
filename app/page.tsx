@@ -12,6 +12,8 @@ import MarketRegime from "@/components/MarketRegime";
 interface StateData {
   testnet: {
     daily_pnl: number;
+    daily_fees: number;
+    daily_net: number;
     trades_today: number;
     wins: number;
     losses: number;
@@ -162,6 +164,8 @@ export default function Dashboard() {
       <div className="mb-6">
         <StatsGrid
           dailyPnl={s?.daily_pnl || 0}
+          dailyFees={s?.daily_fees || 0}
+          dailyNet={s?.daily_net || 0}
           tradesToday={s?.trades_today || 0}
           wins={wins}
           losses={losses}

@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 
 interface StatsGridProps {
   dailyPnl: number;
+  dailyFees: number;
+  dailyNet: number;
   tradesToday: number;
   wins: number;
   losses: number;
@@ -15,6 +17,8 @@ interface StatsGridProps {
 
 export default function StatsGrid({
   dailyPnl,
+  dailyFees,
+  dailyNet,
   tradesToday,
   wins,
   losses,
@@ -24,15 +28,16 @@ export default function StatsGrid({
   lastActivity,
 }: StatsGridProps) {
   const winRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(0) : "0";
-  const pnlPositive = dailyPnl >= 0;
+  const netPositive = dailyNet >= 0;
 
   const stats = [
     {
-      label: "Daily PnL",
-      value: `${pnlPositive ? "+" : ""}$${dailyPnl.toFixed(2)}`,
+      label: "Daily NET PnL",
+      value: `${netPositive ? "+" : ""}$${dailyNet.toFixed(2)}`,
+      sub: `Gross: $${dailyPnl >= 0 ? "+" : ""}${dailyPnl.toFixed(2)} | Fees: -$${dailyFees.toFixed(2)}`,
       icon: "💰",
-      color: pnlPositive ? "text-emerald-400" : "text-red-400",
-      glow: pnlPositive ? "glow-green" : "glow-red",
+      color: netPositive ? "text-emerald-400" : "text-red-400",
+      glow: netPositive ? "glow-green" : "glow-red",
     },
     {
       label: "Trades Today",
