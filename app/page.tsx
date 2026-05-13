@@ -6,6 +6,7 @@ import BalanceCard from "@/components/BalanceCard";
 import PositionCard from "@/components/PositionCard";
 import TradeHistory from "@/components/TradeHistory";
 import StatsGrid from "@/components/StatsGrid";
+import ErrorLog from "@/components/ErrorLog";
 
 interface StateData {
   testnet: {
@@ -35,23 +36,31 @@ interface PositionsData {
   live: Record<string, unknown>[] | { error: string };
 }
 
+interface ErrorData {
+  errors: { ts: string; msg: string }[];
+  total: number;
+}
+
 export default function Dashboard() {
   const [state, setState] = useState<StateData | null>(null);
   const [balance, setBalance] = useState<BalanceData | null>(null);
   const [positions, setPositions] = useState<PositionsData | null>(null);
+  const [errorLog, setErrorLog] = useState<ErrorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchData = useCallback(async () => {
     try {
-      const [stateRes, balanceRes, positionsRes] = await Promise.all([
+      const [stateRes, balanceRes, positionsRes, errorsRes] = await Promise.all([
         fetch("/api/state"),
         fetch("/api/balance"),
         fetch("/api/positions"),
+        fetch("/api/errors"),
       ]);
       setState(await stateRes.json());
       setBalance(await balanceRes.json());
       setPositions(await positionsRes.json());
+      setErrorLog(await errorsRes.json());
       setLastUpdate(new Date());
     } catch (err) {
       console.error("Fetch error:", err);
@@ -200,8 +209,11 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {/* Trade History */}
-      <TradeHistory trades={trades as Parameters<typeof TradeHistory>[0]["trades"]} />
+      {/* Trade History + Error Log */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <TradeHistory trades={trades as Parameters<typeof TradeHistory>[0]["trades"]} />
+        <ErrorLog errors={errorLog?.errors || []} total={errorLog?.total || 0} />
+      </div>
 
       <footer className="mt-8 text-center text-xs text-slate-600">
         Nyx Scalper V2 • Binance Futures • <span className="text-purple-500">ghost</span> mode
