@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
-const API_BASE = process.env.SCALPER_API_URL || "http://localhost:3778";
+const VPS_API = process.env.NYX_API_URL || "http://43.134.67.78:3778";
 
 export async function GET() {
   try {
-    const res = await fetch(`${API_BASE}/api/health`, {
+    const res = await fetch(`${VPS_API}/api/health`, {
       next: { revalidate: 0 },
     });
     const data = await res.json();
