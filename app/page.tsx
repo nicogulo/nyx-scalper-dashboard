@@ -8,6 +8,7 @@ import TradeHistory from "@/components/TradeHistory";
 import StatsGrid from "@/components/StatsGrid";
 import ErrorLog from "@/components/ErrorLog";
 import MarketRegime from "@/components/MarketRegime";
+import ConnectivityStatus from "@/components/ConnectivityStatus";
 
 interface StateData {
   testnet: {
@@ -67,29 +68,44 @@ interface RegimeData {
   };
 }
 
+interface HealthTest {
+  name: string;
+  status: "ok" | "warn" | "fail";
+  detail: string;
+}
+
+interface HealthData {
+  tests: HealthTest[];
+  summary: { passed: number; total: number; all_ok: boolean };
+  error?: string;
+}
+
 export default function Dashboard() {
   const [state, setState] = useState<StateData | null>(null);
   const [balance, setBalance] = useState<BalanceData | null>(null);
   const [positions, setPositions] = useState<PositionsData | null>(null);
   const [errorLog, setErrorLog] = useState<ErrorData | null>(null);
   const [regimeData, setRegimeData] = useState<{ regimes: Record<string, RegimeData>; learning?: { summary: { completed_trades: number; wins: number; losses: number; win_rate: number; total_pnl: number } } } | null>(null);
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchData = useCallback(async () => {
     try {
-      const [stateRes, balanceRes, positionsRes, errorsRes, regimeRes] = await Promise.all([
+      const [stateRes, balanceRes, positionsRes, errorsRes, regimeRes, healthRes] = await Promise.all([
         fetch("/api/state"),
         fetch("/api/balance"),
         fetch("/api/positions"),
         fetch("/api/errors"),
         fetch("/api/regime"),
+        fetch("/api/health"),
       ]);
       setState(await stateRes.json());
       setBalance(await balanceRes.json());
       setPositions(await positionsRes.json());
       setErrorLog(await errorsRes.json());
       setRegimeData(await regimeRes.json());
+      try { setHealthData(await healthRes.json()); } catch { /* health may fail */ }
       setLastUpdate(new Date());
     } catch (err) {
       console.error("Fetch error:", err);
@@ -247,6 +263,17 @@ export default function Dashboard() {
           learning={regimeData?.learning?.summary} 
         />
       </div>
+
+      {/* Connectivity Status */}
+      {healthData && (
+        <div className="mb-6">
+          <ConnectivityStatus
+            tests={healthData.tests || []}
+            summary={healthData.summary || { passed: 0, total: 0, all_ok: false }}
+            error={healthData.error}
+          />
+        </div>
+      )}
 
       {/* Trade History + Error Log */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
