@@ -80,6 +80,16 @@ interface HealthData {
   error?: string;
 }
 
+interface ConfigData {
+  mode: string;
+  dryRun: boolean;
+  isTestnet: boolean;
+  isLive: boolean;
+  canTrade: boolean;
+  pairs: string[];
+  serviceStarted: string;
+}
+
 export default function Dashboard() {
   const [state, setState] = useState<StateData | null>(null);
   const [balance, setBalance] = useState<BalanceData | null>(null);
@@ -87,18 +97,20 @@ export default function Dashboard() {
   const [errorLog, setErrorLog] = useState<ErrorData | null>(null);
   const [regimeData, setRegimeData] = useState<{ regimes: Record<string, RegimeData>; learning?: { summary: { completed_trades: number; wins: number; losses: number; win_rate: number; total_pnl: number } } } | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
+  const [config, setConfig] = useState<ConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchData = useCallback(async () => {
     try {
-      const [stateRes, balanceRes, positionsRes, errorsRes, regimeRes, healthRes] = await Promise.all([
+      const [stateRes, balanceRes, positionsRes, errorsRes, regimeRes, healthRes, configRes] = await Promise.all([
         fetch("/api/state"),
         fetch("/api/balance"),
         fetch("/api/positions"),
         fetch("/api/errors"),
         fetch("/api/regime"),
         fetch("/api/health"),
+        fetch("/api/config"),
       ]);
       setState(await stateRes.json());
       setBalance(await balanceRes.json());
@@ -106,6 +118,7 @@ export default function Dashboard() {
       setErrorLog(await errorsRes.json());
       setRegimeData(await regimeRes.json());
       try { setHealthData(await healthRes.json()); } catch { /* health may fail */ }
+      try { setConfig(await configRes.json()); } catch { /* config may fail */ }
       setLastUpdate(new Date());
     } catch (err) {
       console.error("Fetch error:", err);
@@ -227,20 +240,34 @@ export default function Dashboard() {
         >
           <div className="flex items-center gap-2 mb-4">
             <span className="text-lg">📡</span>
-            <span className="font-semibold text-slate-300">Live Analyze (DRY RUN)</span>
+            <span className="font-semibold text-slate-300">Bot Configuration</span>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
-              <span className="text-slate-400 text-sm">Signals Detected</span>
-              <span className="font-bold text-yellow-400">{state?.liveSignals || 0}</span>
+              <span className="text-slate-400 text-sm">Network</span>
+              <span className={`font-bold text-sm ${config?.isTestnet ? "text-cyan-400" : "text-red-400"}`}>
+                {config?.isTestnet ? "🧪 TESTNET" : "🔴 LIVE"}
+              </span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
               <span className="text-slate-400 text-sm">Mode</span>
-              <span className="text-sm text-cyan-400">DRY RUN</span>
+              <span className={`font-bold text-sm ${config?.dryRun ? "text-yellow-400" : "text-emerald-400"}`}>
+                {config?.dryRun ? "⚠️ DRY RUN" : "✅ ACTIVE TRADING"}
+              </span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
-              <span className="text-slate-400 text-sm">Pair</span>
-              <span className="font-medium text-white">BTCUSDT</span>
+              <span className="text-slate-400 text-sm">Can Trade</span>
+              <span className={`font-bold text-sm ${config?.canTrade ? "text-emerald-400" : "text-yellow-400"}`}>
+                {config?.canTrade ? "✅ Yes" : "❌ No"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
+              <span className="text-slate-400 text-sm">Pairs</span>
+              <span className="text-xs text-slate-300">{(config?.pairs || []).join(", ")}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
+              <span className="text-slate-400 text-sm">Signals Detected</span>
+              <span className="font-bold text-yellow-400">{state?.liveSignals || 0}</span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
               <span className="text-slate-400 text-sm">Errors</span>
@@ -249,8 +276,8 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a3a]">
-              <span className="text-slate-400 text-sm">Last Activity</span>
-              <span className="text-xs text-slate-300">{state?.lastActivity || "-"}</span>
+              <span className="text-slate-400 text-sm">Started</span>
+              <span className="text-xs text-slate-300">{config?.serviceStarted || "-"}</span>
             </div>
           </div>
         </motion.div>
