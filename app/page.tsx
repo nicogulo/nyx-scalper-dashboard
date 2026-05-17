@@ -22,6 +22,14 @@ interface StateData {
     cooldown_until: string | null;
     last_reset_date: string;
   } | null;
+  overall: {
+    total_pnl: number;
+    total_fees: number;
+    total_net: number;
+    total_wins: number;
+    total_losses: number;
+    total_trades: number;
+  };
   trades: Record<string, unknown>[];
   liveSignals: number;
   lastLiveSignal: string | null;
