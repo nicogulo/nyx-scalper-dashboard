@@ -146,6 +146,7 @@ export default function Dashboard() {
   }
 
   const s = state?.testnet;
+  const overall = state?.overall;
   const trades = state?.trades || [];
   const completedTrades = trades.filter(
     (t) => t.result === "WIN" || t.result === "LOSS" || t.pnl
@@ -202,6 +203,12 @@ export default function Dashboard() {
           liveSignals={state?.liveSignals || 0}
           errors={state?.errors || 0}
           lastActivity={state?.lastActivity || ""}
+          overallNet={overall?.total_net || 0}
+          overallPnl={overall?.total_pnl || 0}
+          overallFees={overall?.total_fees || 0}
+          overallTrades={overall?.total_trades || 0}
+          overallWins={overall?.total_wins || 0}
+          overallLosses={overall?.total_losses || 0}
         />
       </div>
 

@@ -13,6 +13,12 @@ interface StatsGridProps {
   liveSignals: number;
   errors: number;
   lastActivity: string;
+  overallNet: number;
+  overallPnl: number;
+  overallFees: number;
+  overallTrades: number;
+  overallWins: number;
+  overallLosses: number;
 }
 
 export default function StatsGrid({
@@ -26,18 +32,42 @@ export default function StatsGrid({
   liveSignals,
   errors,
   lastActivity,
+  overallNet,
+  overallPnl,
+  overallFees,
+  overallTrades,
+  overallWins,
+  overallLosses,
 }: StatsGridProps) {
-  const winRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(0) : "0";
-  const netPositive = dailyNet >= 0;
+  const dailyWinRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(0) : "0";
+  const dailyPositive = dailyNet >= 0;
+  const overallWinRate = overallTrades > 0 ? ((overallWins / overallTrades) * 100).toFixed(0) : "0";
+  const overallPositive = overallNet >= 0;
 
   const stats = [
     {
       label: "Daily NET PnL",
-      value: `${netPositive ? "+" : ""}$${dailyNet.toFixed(2)}`,
+      value: `${dailyPositive ? "+" : ""}$${dailyNet.toFixed(2)}`,
       sub: `Gross: $${dailyPnl >= 0 ? "+" : ""}${dailyPnl.toFixed(2)} | Fees: -$${dailyFees.toFixed(2)}`,
       icon: "💰",
-      color: netPositive ? "text-emerald-400" : "text-red-400",
-      glow: netPositive ? "glow-green" : "glow-red",
+      color: dailyPositive ? "text-emerald-400" : "text-red-400",
+      glow: dailyPositive ? "glow-green" : "glow-red",
+    },
+    {
+      label: "Overall NET PnL",
+      value: `${overallPositive ? "+" : ""}$${overallNet.toFixed(2)}`,
+      sub: `${overallTrades} trades · ${overallWins}W/${overallLosses}L · Fees: -$${overallFees.toFixed(2)}`,
+      icon: "📈",
+      color: overallPositive ? "text-emerald-400" : "text-red-400",
+      glow: overallPositive ? "glow-green" : "glow-red",
+    },
+    {
+      label: "Win Rate",
+      value: `${overallWinRate}%`,
+      icon: "🎯",
+      color: "text-purple-400",
+      glow: "glow-purple",
+      sub: `Today: ${dailyWinRate}% (${wins}W/${losses}L) · Overall: ${overallWins}W/${overallLosses}L`,
     },
     {
       label: "Trades Today",
@@ -45,21 +75,7 @@ export default function StatsGrid({
       icon: "📊",
       color: "text-cyan-400",
       glow: "glow-cyan",
-    },
-    {
-      label: "Win Rate",
-      value: `${winRate}%`,
-      icon: "🎯",
-      color: "text-purple-400",
-      glow: "glow-purple",
-      sub: `${wins}W / ${losses}L`,
-    },
-    {
-      label: "Live Signals",
-      value: `${liveSignals}`,
-      icon: "📡",
-      color: "text-yellow-400",
-      glow: "",
+      sub: `Live Signals: ${liveSignals}`,
     },
   ];
 
