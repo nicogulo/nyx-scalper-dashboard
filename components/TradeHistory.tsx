@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 
 interface Trade {
@@ -20,9 +21,29 @@ interface Trade {
   status?: string;
   result?: string;
   close_reason?: string;
+  mode?: string;
+}
+
+type FilterMode = "all" | "live" | "testnet";
+
+function ModeBadge({ mode }: { mode?: string }) {
+  if (mode === "live-analyze" || mode === "live") {
+    return (
+      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500 text-white leading-tight">
+        LIVE
+      </span>
+    );
+  }
+  return (
+    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-black leading-tight">
+      TESTNET
+    </span>
+  );
 }
 
 export default function TradeHistory({ trades }: { trades: Trade[] }) {
+  const [filter, setFilter] = useState<FilterMode>("all");
+
   if (!trades || trades.length === 0) {
     return (
       <motion.div
@@ -42,7 +63,20 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
     );
   }
 
-  const reversed = [...trades].reverse();
+  const filtered =
+    filter === "all"
+      ? trades
+      : trades.filter((t) => {
+          const m = t.mode || "testnet";
+          if (filter === "live") return m === "live-analyze" || m === "live";
+          return m === "testnet";
+        });
+
+  const pills: { label: string; value: FilterMode }[] = [
+    { label: "All", value: "all" },
+    { label: "LIVE", value: "live" },
+    { label: "TESTNET", value: "testnet" },
+  ];
 
   return (
     <motion.div
@@ -54,8 +88,23 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
         <div className="flex items-center gap-2">
           <span className="text-lg">📜</span>
           <span className="font-semibold text-slate-300">
-            Trade History ({trades.length})
+            Trade History ({filtered.length})
           </span>
+        </div>
+        <div className="flex gap-1">
+          {pills.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setFilter(p.value)}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                filter === p.value
+                  ? "bg-emerald-500 text-white"
+                  : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -63,6 +112,7 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-slate-500 text-xs uppercase tracking-wider border-b border-slate-700/50">
+              <th className="text-left py-2 px-2">Mode</th>
               <th className="text-left py-2 px-2">Time</th>
               <th className="text-left py-2 px-2">Pair</th>
               <th className="text-left py-2 px-2">Side</th>
@@ -74,9 +124,8 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
             </tr>
           </thead>
           <tbody>
-            {reversed.map((trade, i) => {
+            {filtered.map((trade, i) => {
               const pnl = trade.pnl || 0;
-              const pnlPct = trade.pnl_pct || 0;
               const isWin = pnl > 0;
               const side = trade.direction || trade.side || "?";
               const isLong = side === "LONG";
@@ -86,6 +135,9 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
                   key={i}
                   className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
                 >
+                  <td className="py-2 px-2">
+                    <ModeBadge mode={trade.mode} />
+                  </td>
                   <td className="py-2 px-2 text-slate-400 text-xs whitespace-nowrap">
                     {trade.ts
                       ? new Date(trade.ts).toLocaleString("id-ID", {

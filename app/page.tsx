@@ -10,6 +10,27 @@ import ErrorLog from "@/components/ErrorLog";
 import MarketRegime from "@/components/MarketRegime";
 import ConnectivityStatus from "@/components/ConnectivityStatus";
 
+interface TradeEntry {
+  ts?: string;
+  symbol?: string;
+  direction?: string;
+  side?: string;
+  entry?: number;
+  exit?: number;
+  qty?: number;
+  pnl?: number;
+  pnl_pct?: number;
+  sl?: number;
+  tp?: number;
+  rr?: number;
+  confidence?: string;
+  reason?: string;
+  status?: string;
+  result?: string;
+  close_reason?: string;
+  mode?: string;
+}
+
 interface StateData {
   testnet: {
     daily_pnl: number;
@@ -22,6 +43,7 @@ interface StateData {
     cooldown_until: string | null;
     last_reset_date: string;
   } | null;
+  trades: TradeEntry[];
   overall: {
     total_pnl: number;
     total_fees: number;
@@ -29,8 +51,9 @@ interface StateData {
     total_wins: number;
     total_losses: number;
     total_trades: number;
+    live: { pnl: number; fees: number; net: number; wins: number; losses: number; trades: number };
+    testnet: { pnl: number; fees: number; net: number; wins: number; losses: number; trades: number };
   };
-  trades: Record<string, unknown>[];
   liveSignals: number;
   lastLiveSignal: string | null;
   errors: number;
@@ -159,8 +182,8 @@ export default function Dashboard() {
   const completedTrades = trades.filter(
     (t) => t.result === "WIN" || t.result === "LOSS" || t.pnl
   );
-  const wins = completedTrades.filter((t) => (t.pnl as number) > 0).length;
-  const losses = completedTrades.filter((t) => (t.pnl as number) < 0).length;
+  const wins = completedTrades.filter((t) => (t.pnl ?? 0) > 0).length;
+  const losses = completedTrades.filter((t) => (t.pnl ?? 0) < 0).length;
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -319,7 +342,7 @@ export default function Dashboard() {
 
       {/* Trade History + Error Log */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <TradeHistory trades={trades as Parameters<typeof TradeHistory>[0]["trades"]} />
+        <TradeHistory trades={trades} />
         <ErrorLog errors={errorLog?.errors || []} total={errorLog?.total || 0} />
       </div>
 
