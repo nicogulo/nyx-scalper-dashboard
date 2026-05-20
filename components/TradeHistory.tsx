@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 
 interface Trade {
@@ -26,6 +26,8 @@ interface Trade {
 
 type FilterMode = "all" | "live" | "testnet";
 
+const PAGE_SIZE = 15;
+
 function ModeBadge({ mode }: { mode?: string }) {
   if (mode === "live-analyze" || mode === "live") {
     return (
@@ -43,25 +45,8 @@ function ModeBadge({ mode }: { mode?: string }) {
 
 export default function TradeHistory({ trades }: { trades: Trade[] }) {
   const [filter, setFilter] = useState<FilterMode>("all");
-
-  if (!trades || trades.length === 0) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-slate-700/50 bg-[#12122a] p-6"
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-lg">📜</span>
-          <span className="font-semibold text-slate-300">Trade History</span>
-        </div>
-        <div className="text-center py-8 text-slate-500">
-          <div className="text-4xl mb-2">📊</div>
-          <div>No trades yet</div>
-        </div>
-      </motion.div>
-    );
-  }
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const filtered =
     filter === "all"
@@ -71,6 +56,56 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
           if (filter === "live") return m === "live-analyze" || m === "live";
           return m === "testnet";
         });
+
+  // Reverse so latest is on top
+  const sorted = [...filtered].reverse();
+  const visible = sorted.slice(0, visibleCount);
+  const hasMore = visibleCount < sorted.length;
+
+  // Reset visible count when filter changes
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [filter]);
+
+  // Intersection observer for infinite scroll
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const target = entries[0];
+      if (target.isIntersecting && hasMore) {
+        setVisibleCount((prev) => prev + PAGE_SIZE);
+      }
+    },
+    [hasMore]
+  );
+
+  useEffect(() => {
+    const option = { root: null, rootMargin: "100px", threshold: 0.1 };
+    const observer = new IntersectionObserver(handleObserver, option);
+    const current = sentinelRef.current;
+    if (current) observer.observe(current);
+    return () => {
+      if (current) observer.unobserve(current);
+    };
+  }, [handleObserver]);
+
+  if (!trades || trades.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-xl border border-slate-700/50 bg-[#12122a] p-6"
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-lg">{"\ud83d\udcdc"}</span>
+          <span className="font-semibold text-slate-300">Trade History</span>
+        </div>
+        <div className="text-center py-8 text-slate-500">
+          <div className="text-4xl mb-2">{"\ud83d\udcca"}</div>
+          <div>No trades yet</div>
+        </div>
+      </motion.div>
+    );
+  }
 
   const pills: { label: string; value: FilterMode }[] = [
     { label: "All", value: "all" },
@@ -86,7 +121,7 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-lg">📜</span>
+          <span className="text-lg">{"\ud83d\udcdc"}</span>
           <span className="font-semibold text-slate-300">
             Trade History ({filtered.length})
           </span>
@@ -108,9 +143,9 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 bg-[#12122a] z-10">
             <tr className="text-slate-500 text-xs uppercase tracking-wider border-b border-slate-700/50">
               <th className="text-left py-2 px-2">Mode</th>
               <th className="text-left py-2 px-2">Time</th>
@@ -124,7 +159,7 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((trade, i) => {
+            {visible.map((trade, i) => {
               const pnl = trade.pnl || 0;
               const isWin = pnl > 0;
               const side = trade.direction || trade.side || "?";
@@ -177,7 +212,7 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
                     {pnl !== 0
                       ? `${isWin ? "+" : ""}$${pnl.toFixed(2)}`
                       : trade.status === "PLACED"
-                      ? "🔄 Open"
+                      ? "\ud83d\udd04 Open"
                       : "-"}
                   </td>
                   <td className="py-2 px-2 text-center text-slate-400">
@@ -191,6 +226,22 @@ export default function TradeHistory({ trades }: { trades: Trade[] }) {
             })}
           </tbody>
         </table>
+
+        {/* Sentinel for infinite scroll */}
+        {hasMore && (
+          <div ref={sentinelRef} className="py-4 text-center">
+            <div className="inline-block w-5 h-5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-slate-500 mt-1">
+              Loading more... ({visibleCount}/{sorted.length})
+            </p>
+          </div>
+        )}
+
+        {!hasMore && sorted.length > PAGE_SIZE && (
+          <div className="py-3 text-center text-xs text-slate-600">
+            All {sorted.length} trades loaded
+          </div>
+        )}
       </div>
     </motion.div>
   );
