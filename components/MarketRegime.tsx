@@ -14,6 +14,7 @@ interface RegimeData {
   rsi_15m: number;
   ema_alignment: string;
   regime_summary: string;
+  current_price?: number;
   params: {
     vol_ratio_min: number;
     tp_pct: number;
@@ -22,6 +23,11 @@ interface RegimeData {
     allow_long: boolean;
     allow_short: boolean;
     confidence_min: string;
+  };
+  projected?: {
+    entry: number;
+    long: { tp: number; sl: number };
+    short: { tp: number; sl: number };
   };
 }
 
@@ -52,6 +58,13 @@ const trendConfig: Record<string, { emoji: string; color: string }> = {
   DOWN: { emoji: "📉", color: "text-red-400" },
   STRONG_DOWN: { emoji: "⬇️", color: "text-red-500" },
 };
+
+function formatPrice(price: number, symbol: string): string {
+  if (symbol.includes("BTC")) return price.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  if (price < 1) return price.toFixed(6);
+  if (price < 100) return price.toFixed(4);
+  return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export default function MarketRegime({ regimes, learning }: MarketRegimeProps) {
   const regimeList = Object.values(regimes);
@@ -128,6 +141,40 @@ export default function MarketRegime({ regimes, learning }: MarketRegimeProps) {
                     <div className="text-xs font-bold text-white">{r.trend_strength.toFixed(0)}%</div>
                   </div>
                 </div>
+
+                {/* Price Levels */}
+                {r.current_price && r.projected && (
+                  <div className="grid grid-cols-3 gap-1.5 mb-2">
+                    <div className="text-center p-1.5 rounded bg-blue-500/10 border border-blue-500/20">
+                      <div className="text-[10px] text-blue-400">Entry</div>
+                      <div className="text-xs font-bold text-blue-300">{formatPrice(r.current_price, r.symbol)}</div>
+                    </div>
+                    {p.allow_long && (
+                      <>
+                        <div className="text-center p-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="text-[10px] text-emerald-400">LONG TP</div>
+                          <div className="text-xs font-bold text-emerald-300">{formatPrice(r.projected.long.tp, r.symbol)}</div>
+                        </div>
+                        <div className="text-center p-1.5 rounded bg-red-500/10 border border-red-500/20">
+                          <div className="text-[10px] text-red-400">LONG SL</div>
+                          <div className="text-xs font-bold text-red-300">{formatPrice(r.projected.long.sl, r.symbol)}</div>
+                        </div>
+                      </>
+                    )}
+                    {p.allow_short && (
+                      <>
+                        <div className="text-center p-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="text-[10px] text-emerald-400">SHORT TP</div>
+                          <div className="text-xs font-bold text-emerald-300">{formatPrice(r.projected.short.tp, r.symbol)}</div>
+                        </div>
+                        <div className="text-center p-1.5 rounded bg-red-500/10 border border-red-500/20">
+                          <div className="text-[10px] text-red-400">SHORT SL</div>
+                          <div className="text-xs font-bold text-red-300">{formatPrice(r.projected.short.sl, r.symbol)}</div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Adaptive params */}
                 <div className="flex items-center justify-between text-[10px] text-slate-500">
