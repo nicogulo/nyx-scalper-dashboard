@@ -67,8 +67,54 @@ function formatPrice(price: number, symbol: string): string {
   return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function scoreRegime(r: RegimeData): number {
+  let score = 0;
+  const p = r.params;
+
+  // Trend clarity: STRONG > clear > RANGE
+  const trend = r.trend;
+  if (trend === "STRONG_UP" || trend === "STRONG_DOWN") score += 3;
+  else if (trend === "UP" || trend === "DOWN") score += 2;
+  else score += 0; // RANGE = neutral
+
+  // Volatility: MEDIUM ideal, HIGH ok, LOW/EXTREME penalized
+  const vol = r.volatility;
+  if (vol === "MEDIUM") score += 3;
+  else if (vol === "HIGH") score += 2;
+  else if (vol === "LOW") score += 1;
+  // EXTREME = 0
+
+  // Direction allowed matching trend
+  if ((trend.includes("UP") && p.allow_long) || (trend.includes("DOWN") && p.allow_short)) score += 2;
+  else if (!p.allow_long && !p.allow_short) return -1; // blocked entirely
+
+  // Risk multiplier (higher = better conditions)
+  score += p.risk_multiplier;
+
+  // RSI not extreme (not overbought/oversold)
+  if (r.rsi_5m >= 30 && r.rsi_5m <= 70) score += 1;
+  if (r.rsi_15m >= 30 && r.rsi_15m <= 70) score += 1;
+
+  // Volume ratio above 1.0
+  if (r.vol_ratio >= 1.0) score += 1;
+
+  // Quick scalp bonus
+  if (p.risk_multiplier >= 1.0) score += 0.5;
+
+  return score;
+}
+
 export default function MarketRegime({ regimes, learning, onRefresh }: MarketRegimeProps) {
   const regimeList = Object.values(regimes);
+
+  // Score and rank
+  const scored = regimeList.map((r) => ({ ...r, score: scoreRegime(r) }));
+  scored.sort((a, b) => b.score - a.score);
+
+  // Top 2 are "recommended"
+  const recommendedSymbols = new Set(
+    scored.filter((r) => r.score > 5).slice(0, 2).map((r) => r.symbol)
+  );
 
   return (
     <motion.div
@@ -114,13 +160,19 @@ export default function MarketRegime({ regimes, learning, onRefresh }: MarketReg
             const vol = volConfig[r.volatility] || volConfig.MEDIUM;
             const trend = trendConfig[r.trend] || trendConfig.RANGE;
             const p = r.params;
+            const isRecommended = recommendedSymbols.has(r.symbol);
 
             return (
-              <div key={r.symbol} className={`rounded-lg border p-3 ${vol.bg}`}>
+              <div key={r.symbol} className={`rounded-lg border p-3 ${isRecommended ? "bg-cyan-500/10 border-cyan-500/30" : vol.bg}`}>
                 {/* Header */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-white">{r.symbol}</span>
+                    {isRecommended && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                        \u2b50 RECOMMENDED
+                      </span>
+                    )}
                     <span className={`text-xs ${vol.color}`}>{vol.emoji} {r.volatility}</span>
                     <span className={`text-xs ${trend.color}`}>{trend.emoji} {r.trend}</span>
                   </div>
