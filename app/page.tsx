@@ -158,6 +158,15 @@ export default function Dashboard() {
     }
   }, []);
 
+  const fetchRegime = useCallback(async () => {
+    try {
+      const res = await fetch("/api/regime");
+      setRegimeData(await res.json());
+    } catch (err) {
+      console.error("Regime fetch error:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 15000);
@@ -326,7 +335,7 @@ export default function Dashboard() {
         <MarketRegime 
           regimes={regimeData?.regimes || {}} 
           learning={regimeData?.learning?.summary}
-          onRefresh={fetchData}
+          onRefresh={fetchRegime}
         />
       </div>
 
