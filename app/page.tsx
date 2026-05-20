@@ -325,7 +325,8 @@ export default function Dashboard() {
       <div className="mb-6">
         <MarketRegime 
           regimes={regimeData?.regimes || {}} 
-          learning={regimeData?.learning?.summary} 
+          learning={regimeData?.learning?.summary}
+          onRefresh={fetchData}
         />
       </div>
 

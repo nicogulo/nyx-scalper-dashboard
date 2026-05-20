@@ -42,21 +42,22 @@ interface LearningSummary {
 interface MarketRegimeProps {
   regimes: Record<string, RegimeData>;
   learning?: LearningSummary;
+  onRefresh?: () => void;
 }
 
 const volConfig: Record<string, { emoji: string; color: string; bg: string }> = {
-  LOW: { emoji: "🟢", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  MEDIUM: { emoji: "🟡", color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20" },
-  HIGH: { emoji: "🟠", color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
-  EXTREME: { emoji: "🔴", color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
+  LOW: { emoji: "\ud83d\udfe3", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+  MEDIUM: { emoji: "\ud83d\udfe1", color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20" },
+  HIGH: { emoji: "\ud83d\udfe0", color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
+  EXTREME: { emoji: "\ud83d\udd34", color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
 };
 
 const trendConfig: Record<string, { emoji: string; color: string }> = {
-  STRONG_UP: { emoji: "🚀", color: "text-emerald-400" },
-  UP: { emoji: "📈", color: "text-green-400" },
-  RANGE: { emoji: "➡️", color: "text-slate-400" },
-  DOWN: { emoji: "📉", color: "text-red-400" },
-  STRONG_DOWN: { emoji: "⬇️", color: "text-red-500" },
+  STRONG_UP: { emoji: "\ud83d\ude80", color: "text-emerald-400" },
+  UP: { emoji: "\ud83d\udcc8", color: "text-green-400" },
+  RANGE: { emoji: "\u27a1\ufe0f", color: "text-slate-400" },
+  DOWN: { emoji: "\ud83d\udcc9", color: "text-red-400" },
+  STRONG_DOWN: { emoji: "\u2b07\ufe0f", color: "text-red-500" },
 };
 
 function formatPrice(price: number, symbol: string): string {
@@ -66,7 +67,7 @@ function formatPrice(price: number, symbol: string): string {
   return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function MarketRegime({ regimes, learning }: MarketRegimeProps) {
+export default function MarketRegime({ regimes, learning, onRefresh }: MarketRegimeProps) {
   const regimeList = Object.values(regimes);
 
   return (
@@ -77,24 +78,34 @@ export default function MarketRegime({ regimes, learning }: MarketRegimeProps) {
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-lg">🌐</span>
+          <span className="text-lg">{"\ud83c\udf10"}</span>
           <span className="font-semibold text-slate-300">Market Regime</span>
         </div>
-        {learning && (
-          <div className="flex items-center gap-3 text-xs">
-            <span className="text-slate-500">
-              {learning.completed_trades} trades • WR {learning.win_rate}%
-            </span>
-            <span className={`font-bold ${learning.total_pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              ${learning.total_pnl >= 0 ? "+" : ""}{learning.total_pnl.toFixed(2)}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {learning && (
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-slate-500">
+                {learning.completed_trades} trades &bull; WR {learning.win_rate}%
+              </span>
+              <span className={`font-bold ${learning.total_pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                ${learning.total_pnl >= 0 ? "+" : ""}{learning.total_pnl.toFixed(2)}
+              </span>
+            </div>
+          )}
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="px-2.5 py-1 rounded-lg bg-slate-700/50 border border-slate-600/50 text-slate-400 text-xs font-medium hover:bg-slate-700 hover:text-white transition-colors active:scale-95"
+            >
+              {"\u21bb"}
+            </button>
+          )}
+        </div>
       </div>
 
       {regimeList.length === 0 ? (
         <div className="text-center py-6">
-          <div className="text-2xl mb-2">📡</div>
+          <div className="text-2xl mb-2">{"\ud83d\udce1"}</div>
           <p className="text-xs text-slate-500">Awaiting candle data...</p>
         </div>
       ) : (
@@ -185,10 +196,10 @@ export default function MarketRegime({ regimes, learning }: MarketRegimeProps) {
                   </div>
                   <div className="flex gap-2">
                     <span className={p.allow_long ? "text-emerald-400" : "text-red-400/50"}>
-                      LONG {p.allow_long ? "✅" : "❌"}
+                      LONG {p.allow_long ? "\u2705" : "\u274c"}
                     </span>
                     <span className={p.allow_short ? "text-emerald-400" : "text-red-400/50"}>
-                      SHORT {p.allow_short ? "✅" : "❌"}
+                      SHORT {p.allow_short ? "\u2705" : "\u274c"}
                     </span>
                   </div>
                 </div>
