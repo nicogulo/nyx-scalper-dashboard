@@ -9,6 +9,7 @@ import StatsGrid from "@/components/StatsGrid";
 import ErrorLog from "@/components/ErrorLog";
 import MarketRegime from "@/components/MarketRegime";
 import ConnectivityStatus from "@/components/ConnectivityStatus";
+import SignalFeed from "@/components/SignalFeed";
 
 interface TradeEntry {
   ts?: string;
@@ -121,6 +122,34 @@ interface ConfigData {
   serviceStarted: string;
 }
 
+interface SignalEntry {
+  ts: string;
+  symbol: string;
+  direction: "LONG" | "SHORT";
+  price: number;
+  confidence: string;
+  reason: string;
+  strategy: string;
+  tp?: number;
+  sl?: number;
+  rsi_5?: number;
+  vol_ratio?: number;
+  dry_run?: boolean;
+  mode?: string;
+  event_type: string;
+}
+
+interface RejectionEntry {
+  ts: string;
+  symbol: string;
+  trend_15m: string;
+  rsi_5: number;
+  rsi_15: number;
+  vol_ratio: number;
+  reasons: string[];
+  event_type: string;
+}
+
 export default function Dashboard() {
   const [state, setState] = useState<StateData | null>(null);
   const [balance, setBalance] = useState<BalanceData | null>(null);
@@ -129,12 +158,13 @@ export default function Dashboard() {
   const [regimeData, setRegimeData] = useState<{ regimes: Record<string, RegimeData>; learning?: { summary: { completed_trades: number; wins: number; losses: number; win_rate: number; total_pnl: number } } } | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [config, setConfig] = useState<ConfigData | null>(null);
+  const [signalsData, setSignalsData] = useState<{ signals: SignalEntry[]; rejections: RejectionEntry[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchData = useCallback(async () => {
     try {
-      const [stateRes, balanceRes, positionsRes, errorsRes, regimeRes, healthRes, configRes] = await Promise.all([
+      const [stateRes, balanceRes, positionsRes, errorsRes, regimeRes, healthRes, configRes, signalsRes] = await Promise.all([
         fetch("/api/state"),
         fetch("/api/balance"),
         fetch("/api/positions"),
@@ -142,6 +172,7 @@ export default function Dashboard() {
         fetch("/api/regime"),
         fetch("/api/health"),
         fetch("/api/config"),
+        fetch("/api/signals"),
       ]);
       setState(await stateRes.json());
       setBalance(await balanceRes.json());
@@ -150,6 +181,7 @@ export default function Dashboard() {
       setRegimeData(await regimeRes.json());
       try { setHealthData(await healthRes.json()); } catch { /* health may fail */ }
       try { setConfig(await configRes.json()); } catch { /* config may fail */ }
+      try { setSignalsData(await signalsRes.json()); } catch { /* signals may fail */ }
       setLastUpdate(new Date());
     } catch (err) {
       console.error("Fetch error:", err);
@@ -336,6 +368,14 @@ export default function Dashboard() {
           regimes={regimeData?.regimes || {}} 
           learning={regimeData?.learning?.summary}
           onRefresh={fetchRegime}
+        />
+      </div>
+
+      {/* Signal Feed */}
+      <div className="mb-6">
+        <SignalFeed
+          signals={signalsData?.signals || []}
+          rejections={signalsData?.rejections || []}
         />
       </div>
 
