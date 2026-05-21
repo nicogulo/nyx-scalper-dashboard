@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 interface SignalEntry {
   ts: string;
@@ -33,6 +33,16 @@ interface RejectionEntry {
 interface SignalFeedProps {
   signals: SignalEntry[];
   rejections: RejectionEntry[];
+  onExecute?: (signal: SignalEntry) => Promise<{ ok: boolean; error?: string; executed_price?: number; executed_qty?: number; margin_used?: number }>;
+}
+
+interface ExecResult {
+  ok: boolean;
+  error?: string;
+  executed_price?: number;
+  executed_qty?: number;
+  notional?: number;
+  margin_used?: number;
 }
 
 function formatTime(ts: string) {
@@ -43,23 +53,12 @@ function formatTime(ts: string) {
     if (isNaN(d.getTime())) return ts;
     const diffMs = Date.now() - d.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    // Always show clock time WIB
-    const time = d.toLocaleTimeString("id-ID", {
-      timeZone: "Asia/Jakarta",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    // Add relative hint for recent signals
+    const time = d.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
     if (diffMin < 1) return `${time} WIB (baru saja)`;
     if (diffMin < 60) return `${time} WIB (${diffMin}m lalu)`;
     const diffHr = Math.floor(diffMin / 60);
     if (diffHr < 24) return `${time} WIB (${diffHr}j lalu)`;
-    // Older than 1 day
-    return d.toLocaleDateString("id-ID", {
-      timeZone: "Asia/Jakarta",
-      day: "numeric",
-      month: "short",
-    }) + ` ${time} WIB`;
+    return d.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short" }) + ` ${time} WIB`;
   } catch {
     return ts || "-";
   }
@@ -95,15 +94,50 @@ const confidenceColors: Record<string, string> = {
   C4: "text-red-400",
 };
 
-export default function SignalFeed({ signals, rejections }: SignalFeedProps) {
+export default function SignalFeed({ signals, rejections, onExecute }: SignalFeedProps) {
   const [activeTab, setActiveTab] = useState<"signals" | "rejections">("signals");
   const [showStale, setShowStale] = useState(false);
+  const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const [execLoading, setExecLoading] = useState<string | null>(null);
+  const [execResults, setExecResults] = useState<Record<string, ExecResult>>({});
 
   const freshSignals = signals.filter((s) => !isStale(s.ts));
   const staleSignals = signals.filter((s) => isStale(s.ts));
   const displaySignals = showStale ? signals.slice(0, 30) : freshSignals.slice(0, 20);
   const displayRejections = rejections.slice(0, 15);
   const hasStale = staleSignals.length > 0;
+
+  const handleExecute = useCallback(async (sig: SignalEntry) => {
+    const key = `${sig.ts}-${sig.symbol}`;
+    setExecLoading(key);
+    try {
+      if (onExecute) {
+        const result = await onExecute(sig);
+        setExecResults((prev) => ({ ...prev, [key]: result }));
+      } else {
+        // Default: call API directly
+        const res = await fetch("/api/execute-signal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            symbol: sig.symbol,
+            direction: sig.direction,
+            price: sig.price,
+            tp: sig.tp,
+            sl: sig.sl,
+            confidence: sig.confidence,
+          }),
+        });
+        const result = await res.json();
+        setExecResults((prev) => ({ ...prev, [key]: result }));
+      }
+    } catch (err) {
+      setExecResults((prev) => ({ ...prev, [key]: { ok: false, error: String(err) } }));
+    } finally {
+      setExecLoading(null);
+      setConfirmKey(null);
+    }
+  }, [onExecute]);
 
   return (
     <motion.div
@@ -146,9 +180,7 @@ export default function SignalFeed({ signals, rejections }: SignalFeedProps) {
             }`}
           >
             Rejections
-            {rejections.length > 0 && (
-              <span className="ml-1 text-orange-400">({rejections.length})</span>
-            )}
+            {rejections.length > 0 && <span className="ml-1 text-orange-400">({rejections.length})</span>}
           </button>
         </div>
       </div>
@@ -158,70 +190,113 @@ export default function SignalFeed({ signals, rejections }: SignalFeedProps) {
           {activeTab === "signals" &&
             (displaySignals.length > 0 ? (
               <>
-                {displaySignals.map((sig, i) => (
-                  <motion.div
-                    key={`sig-${sig.ts}-${i}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ delay: i * 0.03 }}
-                    className={`rounded-lg border p-3 ${
-                      sig.direction === "LONG"
-                        ? "border-emerald-500/20 bg-emerald-500/5"
-                        : "border-red-500/20 bg-red-500/5"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-bold border ${
-                            directionStyles[sig.direction]
-                          }`}
-                        >
-                          {sig.direction}
-                        </span>
-                        <span className="font-bold text-white text-sm">{sig.symbol}</span>
-                        <span
-                          className={`text-xs font-medium ${
-                            confidenceColors[sig.confidence] || "text-slate-400"
-                          }`}
-                        >
-                          {sig.confidence}
-                        </span>
-                        {sig.strategy && sig.strategy !== "Unknown" && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">
-                            {sig.strategy}
+                {displaySignals.map((sig, i) => {
+                  const sigKey = `${sig.ts}-${sig.symbol}`;
+                  const isConfirming = confirmKey === sigKey;
+                  const isLoading = execLoading === sigKey;
+                  const execResult = execResults[sigKey];
+                  const alreadyExecuted = execResult?.ok;
+
+                  return (
+                    <motion.div
+                      key={`sig-${sigKey}`}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ delay: i * 0.03 }}
+                      className={`rounded-lg border p-3 ${
+                        sig.direction === "LONG"
+                          ? "border-emerald-500/20 bg-emerald-500/5"
+                          : "border-red-500/20 bg-red-500/5"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${directionStyles[sig.direction]}`}>
+                            {sig.direction}
                           </span>
-                        )}
-                        {sig.dry_run && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                            DRY
+                          <span className="font-bold text-white text-sm">{sig.symbol}</span>
+                          <span className={`text-xs font-medium ${confidenceColors[sig.confidence] || "text-slate-400"}`}>
+                            {sig.confidence}
                           </span>
-                        )}
+                          {sig.strategy && sig.strategy !== "Unknown" && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">
+                              {sig.strategy}
+                            </span>
+                          )}
+                          {sig.dry_run && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                              DRY
+                            </span>
+                          )}
+                          {alreadyExecuted && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              ✅ EXECUTED
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-500">{formatTime(sig.ts)}</span>
                       </div>
-                      <span className="text-xs text-slate-500">{formatTime(sig.ts)}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-slate-300">
-                        Entry:{" "}
-                        <span className="text-white font-medium">
-                          {formatPrice(sig.price, sig.symbol)}
+
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-slate-300">
+                          Entry: <span className="text-white font-medium">{formatPrice(sig.price, sig.symbol)}</span>
                         </span>
-                      </span>
-                      {sig.tp && <span className="text-emerald-400">TP: {formatPrice(sig.tp, sig.symbol)}</span>}
-                      {sig.sl && <span className="text-red-400">SL: {formatPrice(sig.sl, sig.symbol)}</span>}
-                      {sig.rsi_5 != null && <span className="text-slate-400">RSI: {sig.rsi_5}</span>}
-                      {sig.vol_ratio != null && (
-                        <span className="text-slate-400">Vol: {sig.vol_ratio}x</span>
+                        {sig.tp && <span className="text-emerald-400">TP: {formatPrice(sig.tp, sig.symbol)}</span>}
+                        {sig.sl && <span className="text-red-400">SL: {formatPrice(sig.sl, sig.symbol)}</span>}
+                        {sig.rsi_5 != null && <span className="text-slate-400">RSI: {sig.rsi_5}</span>}
+                        {sig.vol_ratio != null && <span className="text-slate-400">Vol: {sig.vol_ratio}x</span>}
+                      </div>
+
+                      {sig.reason && (
+                        <div className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">{sig.reason}</div>
                       )}
-                    </div>
-                    {sig.reason && (
-                      <div className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
-                        {sig.reason}
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
+
+                      {/* Execute CTA */}
+                      {!alreadyExecuted && (
+                        <div className="mt-2 pt-2 border-t border-slate-700/30 flex items-center gap-2">
+                          {isConfirming ? (
+                            <>
+                              <span className="text-[11px] text-yellow-400 font-medium">
+                                ⚠️ Execute {sig.direction} {sig.symbol}?
+                              </span>
+                              <button
+                                onClick={() => handleExecute(sig)}
+                                disabled={isLoading}
+                                className="px-2.5 py-1 rounded text-[11px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                              >
+                                {isLoading ? "⏳ Executing..." : "✅ CONFIRM"}
+                              </button>
+                              <button
+                                onClick={() => setConfirmKey(null)}
+                                disabled={isLoading}
+                                className="px-2.5 py-1 rounded text-[11px] text-slate-500 border border-slate-700/30 hover:text-slate-400 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmKey(sigKey)}
+                              disabled={!!execLoading}
+                              className="px-2.5 py-1 rounded text-[11px] font-medium bg-purple-500/15 text-purple-400 border border-purple-500/20 hover:bg-purple-500/25 transition-colors disabled:opacity-30"
+                            >
+                              ⚡ Execute Trade
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Execution result feedback */}
+                      {execResult && !execResult.ok && (
+                        <div className="mt-1.5 text-[11px] text-red-400">
+                          ❌ {execResult.error || "Execution failed"}
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
+
                 {/* Stale toggle */}
                 {hasStale && !showStale && (
                   <button
@@ -241,18 +316,11 @@ export default function SignalFeed({ signals, rejections }: SignalFeedProps) {
                 )}
               </>
             ) : (
-              <motion.div
-                key="no-signals"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-8"
-              >
+              <motion.div key="no-signals" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-8">
                 <div className="text-3xl mb-2">🔇</div>
                 <p className="text-slate-500 text-sm">No fresh signals (last 4 hours)</p>
                 <p className="text-slate-600 text-xs mt-1">
-                  {hasStale
-                    ? `Ada ${staleSignals.length} signal lama — klik di bawah`
-                    : "Signals will appear when a strategy triggers"}
+                  {hasStale ? `Ada ${staleSignals.length} signal lama — klik di bawah` : "Signals will appear when a strategy triggers"}
                 </p>
                 {hasStale && (
                   <button
@@ -280,47 +348,29 @@ export default function SignalFeed({ signals, rejections }: SignalFeedProps) {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-400">❌</span>
                       <span className="font-medium text-slate-300 text-sm">{rej.symbol}</span>
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
-                        {rej.trend_15m}
-                      </span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">{rej.trend_15m}</span>
                     </div>
                     <span className="text-xs text-slate-600">{formatTime(rej.ts)}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs mb-1.5">
-                    <span className="text-slate-400">
-                      RSI: <span className="text-slate-300">{rej.rsi_5}/{rej.rsi_15}</span>
-                    </span>
-                    <span className="text-slate-400">
-                      Vol: <span className="text-slate-300">{rej.vol_ratio}x</span>
-                    </span>
+                    <span className="text-slate-400">RSI: <span className="text-slate-300">{rej.rsi_5}/{rej.rsi_15}</span></span>
+                    <span className="text-slate-400">Vol: <span className="text-slate-300">{rej.vol_ratio}x</span></span>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {rej.reasons.slice(0, 4).map((r, ri) => (
-                      <span
-                        key={ri}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-500 border border-slate-700/30"
-                      >
+                      <span key={ri} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-500 border border-slate-700/30">
                         {r.length > 50 ? r.slice(0, 50) + "…" : r}
                       </span>
                     ))}
-                    {rej.reasons.length > 4 && (
-                      <span className="text-[10px] text-slate-600">+{rej.reasons.length - 4} more</span>
-                    )}
+                    {rej.reasons.length > 4 && <span className="text-[10px] text-slate-600">+{rej.reasons.length - 4} more</span>}
                   </div>
                 </motion.div>
               ))
             ) : (
-              <motion.div
-                key="no-rejections"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-8"
-              >
+              <motion.div key="no-rejections" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-8">
                 <div className="text-3xl mb-2">📭</div>
                 <p className="text-slate-500 text-sm">No rejection logs yet</p>
-                <p className="text-slate-600 text-xs mt-1">
-                  Waiting for candle closes to generate rejection data
-                </p>
+                <p className="text-slate-600 text-xs mt-1">Waiting for candle closes to generate rejection data</p>
               </motion.div>
             ))}
         </AnimatePresence>
