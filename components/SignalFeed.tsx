@@ -38,7 +38,11 @@ interface SignalFeedProps {
 
 function formatTime(ts: string) {
   try {
-    const d = new Date(ts);
+    if (!ts) return "-";
+    // Handle "2026-05-21 13:30:03" format (no T separator)
+    const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
+    const d = new Date(normalized + "Z"); // Treat as UTC
+    if (isNaN(d.getTime())) return ts;
     return d.toLocaleTimeString("id-ID", {
       timeZone: "Asia/Jakarta",
       hour: "2-digit",
@@ -46,7 +50,7 @@ function formatTime(ts: string) {
       second: "2-digit",
     });
   } catch {
-    return ts;
+    return ts || "-";
   }
 }
 
