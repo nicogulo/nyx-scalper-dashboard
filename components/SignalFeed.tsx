@@ -48,17 +48,14 @@ interface ExecResult {
 function formatTime(ts: string) {
   try {
     if (!ts) return "-";
+    // Log timestamps are already in WIB (UTC+7), not UTC
     const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
-    const d = new Date(normalized + "Z");
+    // Parse as UTC+7 by subtracting 7 hours then treating as UTC
+    const d = new Date(normalized + "+07:00");
     if (isNaN(d.getTime())) return ts;
-    const diffMs = Date.now() - d.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const time = d.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
-    if (diffMin < 1) return `${time} WIB (baru saja)`;
-    if (diffMin < 60) return `${time} WIB (${diffMin}m lalu)`;
-    const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${time} WIB (${diffHr}j lalu)`;
-    return d.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short" }) + ` ${time} WIB`;
+    const jam = d.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
+    const tgl = d.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short" });
+    return `${jam}, ${tgl}`;
   } catch {
     return ts || "-";
   }
@@ -68,7 +65,7 @@ function isStale(ts: string): boolean {
   try {
     if (!ts) return true;
     const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
-    const d = new Date(normalized + "Z");
+    const d = new Date(normalized + "+07:00");
     return (Date.now() - d.getTime()) / 3600000 > 4;
   } catch {
     return true;
