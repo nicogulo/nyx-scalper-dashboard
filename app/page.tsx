@@ -366,6 +366,9 @@ export default function Dashboard() {
         <SignalFeed
           signals={signalsData?.signals || []}
           rejections={signalsData?.rejections || []}
+          availableBalance={balance?.live?.available || 0}
+          leverage={15}
+          sizePct={0.30}
         />
       </div>
 
