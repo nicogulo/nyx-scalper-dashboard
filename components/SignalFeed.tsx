@@ -43,15 +43,23 @@ function formatTime(ts: string) {
     if (isNaN(d.getTime())) return ts;
     const diffMs = Date.now() - d.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return "Baru saja";
-    if (diffMin < 60) return `${diffMin}m lalu`;
+    // Always show clock time WIB
+    const time = d.toLocaleTimeString("id-ID", {
+      timeZone: "Asia/Jakarta",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    // Add relative hint for recent signals
+    if (diffMin < 1) return `${time} WIB (baru saja)`;
+    if (diffMin < 60) return `${time} WIB (${diffMin}m lalu)`;
     const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}j lalu`;
-    return (
-      d.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short" }) +
-      " " +
-      d.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" })
-    );
+    if (diffHr < 24) return `${time} WIB (${diffHr}j lalu)`;
+    // Older than 1 day
+    return d.toLocaleDateString("id-ID", {
+      timeZone: "Asia/Jakarta",
+      day: "numeric",
+      month: "short",
+    }) + ` ${time} WIB`;
   } catch {
     return ts || "-";
   }
