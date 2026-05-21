@@ -369,14 +369,6 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Signal Feed */}
-      <div className="mb-6">
-        <SignalFeed
-          signals={signalsData?.signals || []}
-          rejections={signalsData?.rejections || []}
-        />
-      </div>
-
       {/* Connectivity Status */}
       {healthData && (
         <div className="mb-6">
